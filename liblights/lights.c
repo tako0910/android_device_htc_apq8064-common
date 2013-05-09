@@ -37,21 +37,14 @@ static struct light_state_t g_notification;
 static struct light_state_t g_battery;
 static int g_backlight = 255;
 
-char const*const AMBER_LED_FILE = "/sys/class/leds/amber/brightness";
-char const*const GREEN_LED_FILE = "/sys/class/leds/green/brightness";
-
 char const*const HTL21_LED_FILE = "/sys/class/leds/indicator/ModeRGB";
 
 char const*const BUTTON_FILE = "/sys/class/leds/button-backlight/brightness";
 
-char const*const AMBER_BLINK_FILE = "/sys/class/leds/amber/blink";
-char const*const GREEN_BLINK_FILE = "/sys/class/leds/green/blink";
-
 char const*const LCD_BACKLIGHT_FILE = "/sys/class/leds/lcd-backlight/brightness";
 
 enum {
-  LED_AMBER,
-  LED_GREEN,
+  LED_ON,
   LED_BLANK,
 };
 
@@ -62,8 +55,8 @@ enum {
 };
 
 enum {
-  BLINK_MODE_OFF = 0,
-  BLINK_MODE_NORMAL = 1,
+  BLINK_MODE_OFF = 1,
+  BLINK_MODE_NORMAL = 2,
   BLINK_MODE_LONG = 4,
 };
 
@@ -125,9 +118,11 @@ static void set_speaker_light_locked(struct light_device_t *dev,
   unsigned int color = LED_BLANK;
   unsigned int blinkMode = BLINK_MODE_OFF;
 
-  if ((colorRGB >> 8) & 0xFF) color = LED_GREEN;
-  if ((colorRGB >> 16) & 0xFF) color = LED_AMBER;
-  if (((colorRGB >> 8) & 0xFF) > ((colorRGB >> 16) & 0xFF)) color = LED_GREEN;
+  char mcolor[8];
+
+  if ((colorRGB >> 8) & 0xFF) color = LED_ON;
+  if ((colorRGB >> 16) & 0xFF) color = LED_ON;
+  if (((colorRGB >> 8) & 0xFF) > ((colorRGB >> 16) & 0xFF)) color = LED_ON;
 
   if (state->flashMode == LIGHT_FLASH_TIMED)
   {
@@ -150,11 +145,9 @@ static void set_speaker_light_locked(struct light_device_t *dev,
   switch (state->flashMode) {
     case LIGHT_FLASH_TIMED:
       switch (color) {
-        case LED_AMBER:
-	  write_char(HTL21_LED_FILE, "2ff0000");
-          break;
-        case LED_GREEN:
-	  write_char(HTL21_LED_FILE, "200ff00");
+        case LED_ON:
+          sprintf(mcolor, "%d%06x", blinkMode, colorRGB);
+          write_char(HTL21_LED_FILE, mcolor);
           break;
         case LED_BLANK:
 	  write_char(HTL21_LED_FILE, "0");
@@ -166,12 +159,10 @@ static void set_speaker_light_locked(struct light_device_t *dev,
       break;
     case LIGHT_FLASH_NONE:
       switch (color) {
-        case LED_AMBER:
-  	  write_char(HTL21_LED_FILE, "1ff0000");
-          break;
-        case LED_GREEN:
-	  write_char(HTL21_LED_FILE, "100ff00");
-          break;
+        case LED_ON:
+          sprintf(mcolor, "1%06x", colorRGB);
+          write_char(HTL21_LED_FILE, mcolor);
+	  break;
         case LED_BLANK:
 	  write_char(HTL21_LED_FILE, "0");
           break;
@@ -190,15 +181,15 @@ static void set_speaker_light_locked_dual(struct light_device_t *dev,
   unsigned int bcolor = LED_BLANK;
   unsigned int blinkMode = BLINK_MODE_LONG;
 
-  if ((bcolorRGB >> 8) & 0xFF) bcolor = LED_GREEN;
-  if ((bcolorRGB >> 16) & 0xFF) bcolor = LED_AMBER;
+  char mcolor[8];
+
+  if ((bcolorRGB >> 8) & 0xFF) bcolor = LED_ON;
+  if ((bcolorRGB >> 16) & 0xFF) bcolor = LED_ON;
 
   switch (bcolor) {
-    case LED_AMBER:
-      write_char(HTL21_LED_FILE, "4ff0000");
-      break;
-    case LED_GREEN:
-      write_char(HTL21_LED_FILE, "400ff00");
+    case LED_ON:
+      sprintf(mcolor, "4%06x", bcolorRGB);
+      write_char(HTL21_LED_FILE, mcolor);
       break;
     default:
       ALOGE("set_led_state (dual) unexpected color: bcolorRGB=%08x\n", bcolorRGB);
